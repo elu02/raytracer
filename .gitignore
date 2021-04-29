@@ -1,5 +1,3 @@
 output/
-
-# Executables
-main.exe
-cmd.exe
+*.bat
+*.exe
