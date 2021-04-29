@@ -1,0 +1,8 @@
+Without img_array (no multithreading, printing to output without first storing in img_array): 30.866 seconds
+
+With img_array:
+    - Base: 37.256s
+    - 2 threads: 25.259s
+    - 8 threads: 12.922s
+    - 16 threads: 11.719s
+    - 32 threads: 10.510s

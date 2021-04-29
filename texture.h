@@ -43,7 +43,7 @@ class from_image : public texture {
             i = (i == width ? width - 1 : i);
             j = (j == height ? height - 1: j);
             return color(data[components_per_pixel * i + components_per_pixel * j * width] / 255.0, 
-                         data[components_per_pixel * i + components_per_pixel * j * width+ 1] / 255.0, 
+                         data[components_per_pixel * i + components_per_pixel * j * width + 1] / 255.0, 
                          data[components_per_pixel * i + components_per_pixel * j * width + 2] / 255.0);
         }
     

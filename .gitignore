@@ -1,3 +1,4 @@
 output/
 *.bat
 *.exe
+test.cpp

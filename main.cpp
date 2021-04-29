@@ -10,6 +10,7 @@
 #include "glass.h"
 #include "rand.h"
 #include "texture.h"
+#include "img_array.h"
 
 #include <iostream>
 #include <cstdlib>
@@ -18,6 +19,7 @@
 #include <string>
 #include <stdlib.h>
 #include <thread>
+#include <assert.h>
 
 const int inf = 0x3f3f3f3f;
 const int image_width = 400;
@@ -48,7 +50,10 @@ color get_color(const ray& r, std::shared_ptr<sphere_list> sl, int depth) {
 }
 
 int main() {
-    std::ofstream out; out.open("output/convert.bat"); out.close();
+    std::ofstream out; out.open("output/convert.bat"); out.close(); // wipe data
+
+    img_array ar(image_width, image_height);
+
     // CAMERA
     camera cams[scene_count];
     camera cam_main(pi/2, image_width / image_height, vec3(1, 0, -1), vec3(0, 0, -1), vec3(0, 1, 0));
@@ -57,15 +62,18 @@ int main() {
     cams[0] = cam_main;
     cams[1] = cam_above;
     cams[2] = cam_left;
+    
+    // SAMPLE COLORS
+    color light_grey = vec3(0.9, 0.9, 0.9);
+    color red = vec3(0.9, 0.2, 0.2);
 
     // SAMPLE TEXTURES
     auto tex1 = std::make_shared<from_image>("images/flushed.jpg");
-    auto solid1 = std::make_shared<solid_color>(vec3(0.9, 0.9, 0.9));
-    auto solid2 = std::make_shared<solid_color>(vec3(0.9, 0.2, 0.2));
-    auto solid3 = std::make_shared<solid_color>(vec3(0.5, 0.9, 0.2));
+    auto solid1 = std::make_shared<solid_color>(light_grey);
+    auto solid2 = std::make_shared<solid_color>(red);
 
     // SAMPLE MATERIALS
-    auto floor_texture = std::make_shared<matte>(solid1); 
+    auto floor_texture = std::make_shared<metal>(light_grey, 0); 
     auto mat1 = std::make_shared<matte>(tex1);
     auto metal_2 = std::make_shared<metal>(vec3(0.9, 0.2, 0.2), 0);
     auto glass_ = std::make_shared<glass>(1.5);
@@ -84,26 +92,44 @@ int main() {
     for (int scene = 0; scene < scene_count; scene++) {
         out.open("output/out" + std::to_string(scene) + ".ppm");
         out << "P3\n" << image_width << ' ' << image_height << "\n255\n";
-        for (int j = image_height-1; j >= 0; --j) {
-            for (int i = 0; i < image_width; ++i) {
-                color col; 
-                for (int k = 0; k < sample_count; k++) {
-                    float x = (float) (i + random_float(0, 1)) / (float) image_width;
-                    float y = (float) (j + random_float(0, 1)) / (float) image_height;
-                    ray r = cams[scene].get_ray(x, y);
-                    col += get_color(r, sl, 0);
+
+        auto worker = [&cams, &scene, &sl, &out, &ar] (int start_col, int start_row, int width, int height) {
+            for (int j = start_row - 1; j >= start_row - height; j--) {
+                for (int i = start_col; i < start_col + width; i++) {
+                    color c; 
+                    for (int k = 0; k < sample_count; k++) {
+                        float x = (float) (i + random_float(0, 1)) / (float) image_width;
+                        float y = (float) (j + random_float(0, 1)) / (float) image_height;
+                        ray r = cams[scene].get_ray(x, y);
+                        c += get_color(r, sl, 0);
+                    }
+                    write_color(j, i, out, c, sample_count, ar);
                 }
-                write_color(out, col, sample_count);
+            }
+        };
+        const int vert_div = 4;
+        const int horiz_div = 4;
+        assert(image_height % vert_div == 0);
+        assert(image_width % horiz_div == 0);
+        std::thread threads[vert_div * horiz_div];
+        for (int i = 0; i < vert_div; i++) {
+            for (int j = 0; j < horiz_div; j++) {
+                threads[i * horiz_div + j] = std::thread([&worker, i, j](){ worker(j * image_width / horiz_div, 
+                                                                                     image_height - i * image_height / vert_div, 
+                                                                                     image_width / horiz_div, 
+                                                                                     image_height / vert_div); });
             }
         }
+        for (int i = 0; i < vert_div * horiz_div; i++) {
+            threads[i].join();
+        }
+        ar.print(out);
         out.close();
 
         // create batch file that uses Image Magick to convert ppm files to jpg files
-
         /*  out.open("output/convert.bat", std::ios::app);
             out << "magick convert out" << std::to_string(scene) << ".ppm out" << std::to_string(scene) << ".jpg\n"; 
             out.close();  */
-        
     }
     // system("cd output && convert.bat"); // runs batch file that converts ppm files to jpg files using Image Magick
 }
